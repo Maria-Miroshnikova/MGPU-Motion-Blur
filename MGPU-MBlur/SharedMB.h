@@ -30,6 +30,7 @@ protected:
     static constexpr DXGI_FORMAT TilemaxMapFormat = DXGI_FORMAT_R16G16_FLOAT;
     static constexpr DXGI_FORMAT NeighbourMaxMapFormat = DXGI_FORMAT_R16G16_FLOAT;
     static constexpr DXGI_FORMAT MbMapFormat = DXGI_FORMAT_R8G8B8A8_UNORM;//DXGI_FORMAT_R16G16_FLOAT;
+    static constexpr DXGI_FORMAT DepthMapFormat = DXGI_FORMAT_R32_TYPELESS;
 
     std::shared_ptr<GDevice> device;
     std::shared_ptr<GRootSignature> velocityRootSignature;
@@ -41,6 +42,9 @@ protected:
     std::shared_ptr<ComputePSO> tilemaxPSO;
     std::shared_ptr<ComputePSO> neighbourmaxPSO;
     std::shared_ptr<ComputePSO> mbPSO;
+
+    GTexture depthMap;
+    GDescriptor depthMapSRV;
 
     GTexture velocityMap;
     GDescriptor velocityMapSRV;
@@ -61,12 +65,13 @@ protected:
 public:
     virtual ~MBResources() = default;
 
+    const GTexture& GetDepthMap() const { return depthMap; }
     const GTexture& GetVelocityMap() const { return velocityMap; }
     const GTexture& GetTilemaxMap() const { return tilemaxMap; }
     const GTexture& GetNeighbourmaxMap() const { return neighbourmaxMap; }
     const GTexture& GetMbMap() const { return mbMap; }
 
-
+    const GDescriptor* GetDepthMapSRV() const { return &depthMapSRV; }
     const GDescriptor* GetVelocityMapSRV() const { return &velocityMapSRV; }
     const GDescriptor* GetVelocityMapUAV() const { return &velocityMapUAV; }
     const GDescriptor* GetTilemaxMapSRV() const { return &tilemaxMapSRV; }
@@ -109,7 +114,7 @@ class MBCrossResources final {
     // а промежуточные карты?
     // фрейм наверное нет т к он скорее в не-параллельном пассе
     
-    // std::shared_ptr<GCrossAdapterResource> sharedDepthMap;
+    std::shared_ptr<GCrossAdapterResource> sharedDepthMap;
     std::shared_ptr<GCrossAdapterResource> sharedVelocityMap;
     std::shared_ptr<GCrossAdapterResource> sharedNeighbourmaxMap;
 
@@ -118,6 +123,7 @@ public:
 
     void OnResize(uint32_t width, uint32_t height) const;
 
+    const GCrossAdapterResource& GetDepthMap() const { return *sharedDepthMap; }
     const GCrossAdapterResource& GetVelocityMap() const { return *sharedVelocityMap; }
     const GCrossAdapterResource& GetNeighbourmaxMap() const { return *sharedNeighbourmaxMap; }
 };
@@ -144,14 +150,14 @@ public:
     void ComputeMbTextures(
         const std::shared_ptr<GCommandList>& cmdList,
         const std::shared_ptr<ConstantUploadBuffer<MBConstants>>& currFrame,
-        const MBResources& Resources,/* int blurCount,*/ const std::shared_ptr<SharedSSAO> ssaoPass
+        const MBResources& Resources//,/* int blurCount,*/// const std::shared_ptr<SharedSSAO> ssaoPass
     );
 
     void ComputeVelocityBuffer(
         const std::shared_ptr<GCommandList>& cmdList,
         const std::shared_ptr<ConstantUploadBuffer<MBConstants>>& currFrame,
-        const MBResources& Resources,
-        const std::shared_ptr<SharedSSAO> ssaoPass
+        const MBResources& Resources//,
+       // const std::shared_ptr<SharedSSAO> ssaoPass
     );
 
     void ComputeTileMax(

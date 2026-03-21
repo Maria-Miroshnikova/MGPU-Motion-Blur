@@ -255,12 +255,14 @@ void HybridMBlurApp::PopulateAmbientMapCommands(const std::shared_ptr<GCommandLi
 }
 
 void HybridMBlurApp::PopulateMbTexturesCommands(const std::shared_ptr<GCommandList>& cmdList) const {
+    
+    cmdList->CopyResource(mbPass->GetPrimeResources().GetDepthMap(), ssaoPass->GetPrimeResources().GetDepthMap());
     // TODO
     if (IsUsingSharedMB) {
         {
             const auto& Resources = mbPass->GetPrimeResources();
             const auto& CrossResource = mbPass->GetCrossResources();
-            //cmdList->CopyResource(CrossResource.GetDepthMap().GetPrimeResource(), Resources.GetDepthMap());
+            cmdList->CopyResource(CrossResource.GetDepthMap().GetPrimeResource(), Resources.GetDepthMap());
             cmdList->CopyResource(Resources.GetVelocityMap(), CrossResource.GetVelocityMap().GetPrimeResource());
             cmdList->CopyResource(Resources.GetNeighbourmaxMap(), CrossResource.GetNeighbourmaxMap().GetPrimeResource());
         }
@@ -272,9 +274,9 @@ void HybridMBlurApp::PopulateMbTexturesCommands(const std::shared_ptr<GCommandLi
                 const auto& CrossResource = mbPass->GetCrossResources();
                 const auto secondCmdList = secondQueue->GetCommandList();
                 //secondCmdList->CopyResource(Resources.GetVelocityMap(), CrossResource.GetVelocityMap().GetSharedResource());
-                //secondCmdList->CopyResource(Resources.GetDepthMap(), CrossResource.GetDepthMap().GetSharedResource());
+                secondCmdList->CopyResource(Resources.GetDepthMap(), CrossResource.GetDepthMap().GetSharedResource());
 
-                mbPass->ComputeMbTextures(secondCmdList, currentFrameResource->SecondMbConstantUploadBuffer, Resources, ssaoPass);
+                mbPass->ComputeMbTextures(secondCmdList, currentFrameResource->SecondMbConstantUploadBuffer, Resources);//, ssaoPass);
 
                 secondCmdList->CopyResource(CrossResource.GetVelocityMap().GetSharedResource(), Resources.GetVelocityMap());
                 secondCmdList->CopyResource(CrossResource.GetNeighbourmaxMap().GetSharedResource(), Resources.GetNeighbourmaxMap());
@@ -284,7 +286,7 @@ void HybridMBlurApp::PopulateMbTexturesCommands(const std::shared_ptr<GCommandLi
         }
     }
     else {
-        mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetPrimeResources(), ssaoPass);
+        mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetPrimeResources());//, ssaoPass);
         //mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetSecondResources(), ssaoPass);
     }
 }

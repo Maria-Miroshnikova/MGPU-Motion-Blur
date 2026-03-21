@@ -138,6 +138,8 @@ void MBResources::Initialize(const std::shared_ptr<GDevice>& Device, const D3D12
 {
     this->device = Device;
  
+    depthMapSRV = Device->AllocateDescriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
+
     velocityMapSRV = Device->AllocateDescriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
     velocityMapUAV = Device->AllocateDescriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
 
@@ -157,6 +159,36 @@ void MBResources::Initialize(const std::shared_ptr<GDevice>& Device, const D3D12
 
 void MBResources::OnResize(uint32_t width, uint32_t height)
 {
+    //depth
+
+    D3D12_RESOURCE_DESC texDesc;
+    ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
+    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    texDesc.Alignment = 0;
+    texDesc.Width = width;
+    texDesc.Height = height;
+    texDesc.DepthOrArraySize = 1;
+    texDesc.MipLevels = 1;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.SampleDesc.Quality = 0;
+    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+
+    if (depthMap.GetD3D12Resource() == nullptr)
+    {
+        texDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+        D3D12_CLEAR_VALUE optClear;
+        optClear.Format = DXGI_FORMAT_D32_FLOAT;
+        optClear.DepthStencil.Depth = 1.0f;
+
+        depthMap = GTexture(device, texDesc, L"MB Depth Map " + device->GetName(), TextureUsage::Depth, &optClear);
+    }
+    else
+    {
+        GTexture::Resize(depthMap, width, height, 1);
+    }
+
     // velocity
 
     D3D12_RESOURCE_DESC texVelocityDesc;
@@ -273,6 +305,15 @@ void MBResources::RebuildDescriptors() const
 {
     // Prime GPU
 
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Format = NormalMapFormat;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+    depthMap.CreateShaderResourceView(&srvDesc, &depthMapSRV);
+
     // velocity
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvVelocityDesc = {};
@@ -375,8 +416,8 @@ void MBResources::BuildPSO(const D3D12_INPUT_LAYOUT_DESC& layout)
 void MBCrossResources::Initialize(const MBResources& Resources, const std::shared_ptr<GDevice>& primeDevice, const std::shared_ptr<GDevice>& secondDevice)
 {
     sharedVelocityMap = std::make_shared<GCrossAdapterResource>(Resources.GetVelocityMap().GetD3D12ResourceDesc(), primeDevice, secondDevice);
-    //sharedDepthMap = std::make_shared<GCrossAdapterResource>(Resources.GetDepthMap().GetD3D12ResourceDesc(), primeDevice, secondDevice,
-    //    L"Cross Adapter Depth Map");
+    sharedDepthMap = std::make_shared<GCrossAdapterResource>(Resources.GetDepthMap().GetD3D12ResourceDesc(), primeDevice, secondDevice,
+        L"Cross Adapter Depth Map");
     sharedNeighbourmaxMap = std::make_shared<GCrossAdapterResource>(Resources.GetNeighbourmaxMap().GetD3D12ResourceDesc(), primeDevice, secondDevice,
         L"Cross Adapter Neighbourmax Map");
 }
@@ -384,7 +425,7 @@ void MBCrossResources::Initialize(const MBResources& Resources, const std::share
 void MBCrossResources::OnResize(uint32_t width, uint32_t height) const
 {
     sharedVelocityMap->Resize(width, height);
-    //sharedDepthMap->Resize(width, height);
+    sharedDepthMap->Resize(width, height);
 
     UINT tileW = (width + SharedMB::tileSize - 1) / SharedMB::tileSize;
     UINT tileH = (height + SharedMB::tileSize - 1) / SharedMB::tileSize;
@@ -430,18 +471,19 @@ void SharedMB::OnResize(const UINT newWidth, const UINT newHeight)
 
     primeResources.OnResize(newWidth, newHeight);
     secondResources.OnResize(newWidth, newHeight);
-    //crossResources.OnResize(newWidth, newHeight);
+    crossResources.OnResize(newWidth, newHeight);
 }
 
 
 void SharedMB::ComputeMbTextures(
     const std::shared_ptr<GCommandList>& cmdList,
     const std::shared_ptr<ConstantUploadBuffer<MBConstants>>& currFrame,
-    const MBResources& Resources,
+    const MBResources& Resources//,
    // const int blurCount,
-    const std::shared_ptr<SharedSSAO> ssaoPass)
+    //const std::shared_ptr<SharedSSAO> ssaoPass)
+    )
 {
-    ComputeVelocityBuffer(cmdList, currFrame, Resources, ssaoPass);
+    ComputeVelocityBuffer(cmdList, currFrame, Resources);//, ssaoPass);
     ComputeTileMax(cmdList, currFrame, Resources);
     ComputeNeighbourMax(cmdList, currFrame, Resources);
 }
@@ -449,8 +491,9 @@ void SharedMB::ComputeMbTextures(
 void SharedMB::ComputeVelocityBuffer(
     const std::shared_ptr<GCommandList>& cmdList,
     const std::shared_ptr<ConstantUploadBuffer<MBConstants>>& currFrame,
-    const MBResources& Resources,
-    const std::shared_ptr<SharedSSAO> ssaoPass)
+    const MBResources& Resources//,
+    //const std::shared_ptr<SharedSSAO> ssaoPass
+    )
 {
     cmdList->StartMark(L"MB velocity");
 
@@ -459,7 +502,9 @@ void SharedMB::ComputeVelocityBuffer(
     //assert(ssaoPass->GetPrimeResources().GetDepthMapSRV());
 
     // depth
-    cmdList->TransitionBarrier(ssaoPass->GetPrimeResources().GetDepthMap(),
+    //cmdList->TransitionBarrier(ssaoPass->GetPrimeResources().GetDepthMap(),
+    //    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    cmdList->TransitionBarrier(Resources.GetDepthMap(),
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     //cmdList->TransitionBarrier(antiAliasingPrimePath->GetSRV(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -479,7 +524,8 @@ void SharedMB::ComputeVelocityBuffer(
     //cmdList->SetRootDescriptorTable(1, Resources.GetVelocityMapUAV());
 
     // depth
-    cmdList->SetComputeRootDescriptorTable(1, ssaoPass->GetPrimeResources().GetDepthMapSRV());
+    //cmdList->SetComputeRootDescriptorTable(1, ssaoPass->GetPrimeResources().GetDepthMapSRV());
+    cmdList->SetComputeRootDescriptorTable(1, Resources.GetDepthMapSRV());
     //cmdList->SetComputeRootDescriptorTable(1, antiAliasingPrimePath->GetSRV());
 
     cmdList->SetComputeRootDescriptorTable(2, Resources.GetVelocityMapUAV());
@@ -494,7 +540,9 @@ void SharedMB::ComputeVelocityBuffer(
     cmdList->TransitionBarrier(Resources.GetVelocityMap(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     //cmdList->TransitionBarrier(Resources.GetVelocityMap(), D3D12_RESOURCE_STATE_COMMON);
 
-    cmdList->TransitionBarrier(ssaoPass->GetPrimeResources().GetDepthMap(),
+    //cmdList->TransitionBarrier(ssaoPass->GetPrimeResources().GetDepthMap(),
+    //    D3D12_RESOURCE_STATE_COMMON);
+    cmdList->TransitionBarrier(Resources.GetDepthMap(),
         D3D12_RESOURCE_STATE_COMMON);
     cmdList->FlushResourceBarriers();
 

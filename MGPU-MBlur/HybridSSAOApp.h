@@ -105,7 +105,7 @@ protected:
 
     bool IsStop = false;
 
-    bool IsUsingSharedMB = false;//true;
+    bool IsUsingSharedMB = true;
 
     bool IsUsingSharedSSAO = false;
     bool IsUseHBAO = false;
