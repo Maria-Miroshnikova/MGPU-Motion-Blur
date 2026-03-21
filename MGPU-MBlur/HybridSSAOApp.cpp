@@ -867,17 +867,19 @@ void HybridMBlurApp::LoadModels()
     auto queue = primeDevice->GetCommandQueue(GQueueType::Compute);
     auto cmdList = queue->GetCommandList();
 
-    //auto nano = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Nanosuit\\Nanosuit.obj");
-    //models[L"nano"] = std::move(nano);
+    //
+    auto nano = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Nanosuit\\Nanosuit.obj");
+    models[L"nano"] = std::move(nano);
 
     auto atlas = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Atlas\\Atlas.obj");
     models[L"atlas"] = std::move(atlas);
     auto pbody = assets->CreateModelFromFile(cmdList, "Data\\Objects\\P-Body\\P-Body.obj");
     models[L"pbody"] = std::move(pbody);
 
-    //auto griffon = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Griffon\\Griffon.FBX");
-    //griffon->scaleMatrix = Matrix::CreateScale(0.1);
-    //models[L"griffon"] = std::move(griffon);
+    //
+    auto griffon = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Griffon\\Griffon.FBX");
+    griffon->scaleMatrix = Matrix::CreateScale(0.1);
+    models[L"griffon"] = std::move(griffon);
 
     /*auto mountDragon = assets->CreateModelFromFile(
         cmdList, "Data\\Objects\\MOUNTAIN_DRAGON\\MOUNTAIN_DRAGON.FBX");
@@ -900,22 +902,25 @@ void HybridMBlurApp::LoadModels()
         cmdList, "Data\\Objects\\Temple\\SM_AsianCastle_A.FBX");
     models[L"stair"] = std::move(stair);
 
-    /*auto columns = assets->CreateModelFromFile(
+    //
+    auto columns = assets->CreateModelFromFile(
         cmdList, "Data\\Objects\\Temple\\SM_AsianCastle_E.FBX");
-    models[L"columns"] = std::move(columns);*/
+    models[L"columns"] = std::move(columns);
 
-    /*auto fountain = assets->
+    //
+    auto fountain = assets->
         CreateModelFromFile(cmdList, "Data\\Objects\\Temple\\SM_Fountain.FBX");
     models[L"fountain"] = std::move(fountain);
-    */
+    
 
     auto platform = assets->CreateModelFromFile(
         cmdList, "Data\\Objects\\Temple\\SM_PlatformSquare.FBX");
     models[L"platform"] = std::move(platform);
 
-    /*auto doom = assets->CreateModelFromFile(cmdList, "Data\\Objects\\DoomSlayer\\doommarine.obj");
+    //
+    auto doom = assets->CreateModelFromFile(cmdList, "Data\\Objects\\DoomSlayer\\doommarine.obj");
     models[L"doom"] = std::move(doom);
-    */
+    
 
     queue->WaitForFenceValue(queue->ExecuteCommandList(cmdList));
     Flush();
@@ -1030,7 +1035,8 @@ void HybridMBlurApp::CreateGO()
     sun1->AddComponent(light);
     gameObjects.push_back(std::move(sun1));
 
-    /*for (int i = 0; i < 11; ++i)
+    //
+    for (int i = 0; i < 11; ++i)
     {
         auto nano = std::make_unique<GameObject>();
         nano->GetTransform()->SetPosition(Vector3::Right * -15 + Vector3::Forward * 12 * i);
@@ -1072,15 +1078,16 @@ void HybridMBlurApp::CreateGO()
             typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
             gameObjects.push_back(std::move(pbody));
         }
-    }*/
+    }
 
-    /*auto particle = std::make_unique<GameObject>();
+    //
+    auto particle = std::make_unique<GameObject>();
     particle->GetTransform()->SetPosition(Vector3::Up);
     const auto emitter = std::make_shared<ParticleEmitter>(primeDevice, 10000);
     particle->AddComponent(emitter);
     typedRenderer[static_cast<int>(RenderMode::Particle)].push_back(emitter);
     emitters.push_back(emitter.get());
-    gameObjects.push_back(std::move(particle));*/
+    gameObjects.push_back(std::move(particle));
 
 
     auto platform = std::make_unique<GameObject>();
@@ -1126,28 +1133,30 @@ void HybridMBlurApp::CreateGO()
     stair->AddComponent(renderer);
     typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
 
-
-   /* auto columns = std::make_unique<GameObject>();
+    //
+    auto columns = std::make_unique<GameObject>();
     columns->GetTransform()->SetParent(stair->GetTransform().get());
     columns->SetScale(0.8);
     columns->GetTransform()->SetEulerRotate(Vector3(0, 0, 90));
     columns->GetTransform()->SetPosition(Vector3::Up * 2000 + Vector3::Forward * 900);
     renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"columns"]);
     columns->AddComponent(renderer);
-    typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);*/
+    typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
 
-    /*auto fountain = std::make_unique<GameObject>();
+    //
+    auto fountain = std::make_unique<GameObject>();
     fountain->SetScale(0.005);
     fountain->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
     fountain->GetTransform()->SetPosition(Vector3::Up * 35 + Vector3::Backward * 77);
     renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"fountain"]);
     fountain->AddComponent(renderer);
-    typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);*/
+    typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
 
     gameObjects.push_back(std::move(platform));
     gameObjects.push_back(std::move(stair));
-    //gameObjects.push_back(std::move(columns));
-    //gameObjects.push_back(std::move(fountain));
+    //
+    gameObjects.push_back(std::move(columns));
+    gameObjects.push_back(std::move(fountain));
 
 
     /*auto mountDragon = std::make_unique<GameObject>();
@@ -1166,7 +1175,9 @@ void HybridMBlurApp::CreateGO()
     desertDragon->AddComponent(renderer);
     typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
     gameObjects.push_back(std::move(desertDragon));
-
+    */
+    
+    //
     auto griffon = std::make_unique<GameObject>();
     griffon->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
     griffon->SetScale(0.8);
@@ -1183,7 +1194,7 @@ void HybridMBlurApp::CreateGO()
     renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"griffon"]);
     griffon->AddComponent(renderer);
     typedRenderer[static_cast<int>(RenderMode::OpaqueAlphaDrop)].push_back(renderer);
-    gameObjects.push_back(std::move(griffon));*/
+    gameObjects.push_back(std::move(griffon));
 
     debugLogger.PushMessage(std::wstring(L"\nFinish create GO"));
 }
