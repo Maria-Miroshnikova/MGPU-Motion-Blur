@@ -29,8 +29,8 @@ HybridMBlurApp::~HybridMBlurApp() = default;
 void HybridMBlurApp::SwitchDevice()
 {
     Flush();
-    IsUsingSharedSSAO = !IsUsingSharedSSAO;
-    debugLogger.PushMessage(L"switch IsUsingSharedSSAO: " + std::to_wstring(IsUsingSharedSSAO));
+    IsUsingSharedMB = !IsUsingSharedMB;
+    debugLogger.PushMessage(L"switch IsUsingSharedMB: " + std::to_wstring(IsUsingSharedMB));
 }
 
 void HybridMBlurApp::ChangeAOMethod()
@@ -190,67 +190,45 @@ void HybridMBlurApp::PopulateNormalMapCommands(const std::shared_ptr<GCommandLis
 
 void HybridMBlurApp::PopulateAmbientMapCommands(const std::shared_ptr<GCommandList>& cmdList) const
 {
-    if (IsUsingSharedSSAO)
-    {
-        if (IsUseHBAO)
+    if (IsUseHBAO)
+        hbaoPass->Compute(cmdList, currentFrameResource->PrimeHBAOConstantUploadBuffer, hbaoPass->GetPrimeResources());
+    else
+        ssaoPass->ComputeSsao(cmdList, currentFrameResource->PrimeSsaoConstantUploadBuffer, ssaoPass->GetPrimeResources(), 3);
+
+    // mb textures
+
+    cmdList->CopyResource(mbPass->GetPrimeResources().GetDepthMap(), ssaoPass->GetPrimeResources().GetDepthMap());
+    // TODO
+    if (IsUsingSharedMB) {
         {
-            {
-                const auto& Resources = hbaoPass->GetPrimeResources();
-                const auto& CrossResource = hbaoPass->GetCrossResources();
-                cmdList->CopyResource(CrossResource.GetDepthMap().GetPrimeResource(), Resources.GetDepthMap());
-                cmdList->CopyResource(Resources.GetAmbientMap(), CrossResource.GetAmbientMap().GetPrimeResource());
-            }
-            {
-                auto secondQueue = secondDevice->GetCommandQueue();
-                if (currentFrameResource->SecondRenderFenceValue == 0 || secondQueue->IsFinish(currentFrameResource->SecondRenderFenceValue))
-                {
-                    const auto& Resources = hbaoPass->GetSecondResources();
-                    const auto& CrossResource = hbaoPass->GetCrossResources();
-                    const auto secondCmdList = secondQueue->GetCommandList();
-                    secondCmdList->CopyResource(Resources.GetDepthMap(), CrossResource.GetDepthMap().GetSharedResource());
-
-                    hbaoPass->Compute(secondCmdList, currentFrameResource->SecondHBAOConstantUploadBuffer, Resources);
-
-                    secondCmdList->CopyResource(CrossResource.GetAmbientMap().GetSharedResource(), Resources.GetAmbientMap());
-
-                    currentFrameResource->SecondRenderFenceValue = secondQueue->ExecuteCommandList(secondCmdList);
-                }
-            }
+            const auto& Resources = mbPass->GetPrimeResources();
+            const auto& CrossResource = mbPass->GetCrossResources();
+            cmdList->CopyResource(CrossResource.GetDepthMap().GetPrimeResource(), Resources.GetDepthMap());
+            cmdList->CopyResource(Resources.GetVelocityMap(), CrossResource.GetVelocityMap().GetPrimeResource());
+            cmdList->CopyResource(Resources.GetNeighbourmaxMap(), CrossResource.GetNeighbourmaxMap().GetPrimeResource());
         }
-        else
         {
+            auto secondQueue = secondDevice->GetCommandQueue();
+            if (currentFrameResource->SecondRenderFenceValue == 0 || secondQueue->IsFinish(currentFrameResource->SecondRenderFenceValue))
             {
-                const auto& Resources = ssaoPass->GetPrimeResources();
-                const auto& CrossResource = ssaoPass->GetCrossResources();
-                cmdList->CopyResource(CrossResource.GetDepthMap().GetPrimeResource(), Resources.GetDepthMap());
-                cmdList->CopyResource(CrossResource.GetNormalMap().GetPrimeResource(), Resources.GetNormalMap());
-                cmdList->CopyResource(Resources.GetAmbientMap(), CrossResource.GetAmbientMap().GetPrimeResource());
-            }
-            {
-                auto secondQueue = secondDevice->GetCommandQueue();
-                if (currentFrameResource->SecondRenderFenceValue == 0 || secondQueue->IsFinish(currentFrameResource->SecondRenderFenceValue))
-                {
-                    const auto& Resources = ssaoPass->GetSecondResources();
-                    const auto& CrossResource = ssaoPass->GetCrossResources();
-                    const auto secondCmdList = secondQueue->GetCommandList();
-                    secondCmdList->CopyResource(Resources.GetNormalMap(), CrossResource.GetNormalMap().GetSharedResource());
-                    secondCmdList->CopyResource(Resources.GetDepthMap(), CrossResource.GetDepthMap().GetSharedResource());
+                const auto& Resources = mbPass->GetSecondResources();
+                const auto& CrossResource = mbPass->GetCrossResources();
+                const auto secondCmdList = secondQueue->GetCommandList();
+                //secondCmdList->CopyResource(Resources.GetVelocityMap(), CrossResource.GetVelocityMap().GetSharedResource());
+                secondCmdList->CopyResource(Resources.GetDepthMap(), CrossResource.GetDepthMap().GetSharedResource());
 
-                    ssaoPass->ComputeSsao(secondCmdList, currentFrameResource->SecondSsaoConstantUploadBuffer, Resources, 1);
+                mbPass->ComputeMbTextures(secondCmdList, currentFrameResource->SecondMbConstantUploadBuffer, Resources);//, ssaoPass);
 
-                    secondCmdList->CopyResource(CrossResource.GetAmbientMap().GetSharedResource(), Resources.GetAmbientMap());
+                secondCmdList->CopyResource(CrossResource.GetVelocityMap().GetSharedResource(), Resources.GetVelocityMap());
+                secondCmdList->CopyResource(CrossResource.GetNeighbourmaxMap().GetSharedResource(), Resources.GetNeighbourmaxMap());
 
-                    currentFrameResource->SecondRenderFenceValue = secondQueue->ExecuteCommandList(secondCmdList);
-                }
+                currentFrameResource->SecondRenderFenceValue = secondQueue->ExecuteCommandList(secondCmdList);
             }
         }
     }
-    else
-    {
-        if (IsUseHBAO)
-            hbaoPass->Compute(cmdList, currentFrameResource->PrimeHBAOConstantUploadBuffer, hbaoPass->GetPrimeResources());
-        else
-            ssaoPass->ComputeSsao(cmdList, currentFrameResource->PrimeSsaoConstantUploadBuffer, ssaoPass->GetPrimeResources(), 3);
+    else {
+        mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetPrimeResources());//, ssaoPass);
+        //mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetSecondResources(), ssaoPass);
     }
 }
 
@@ -446,7 +424,7 @@ void HybridMBlurApp::Draw(const GameTimer& gt)
 
     PopulateNormalMapCommands(primeCmdList);
 
-    PopulateMbTexturesCommands(primeCmdList);
+    //PopulateMbTexturesCommands(primeCmdList);
 
     PopulateAmbientMapCommands(primeCmdList);
     PopulateShadowMapCommands(primeCmdList);
@@ -507,86 +485,47 @@ bool HybridMBlurApp::Initialize()
     TestTime = 120;
 #endif
 
+    auto& NativeMBState = benchmark.AddState<WaitState>(TestTime, FileQueueWriter(Benchmark::GetLogFile(L"Native MB ", *primeDevice, *secondDevice)));
+    NativeMBState.OnEnter = [](FileQueueWriter& logs)
+        {
+            logs.PushMessage(L"FPS;MSPF;MinFPS;MinMSPF;MaxFPS;MaxMSPF");
+        };
 
-    auto& NativeSSAOState = benchmark.AddState<WaitState>(TestTime, FileQueueWriter(Benchmark::GetLogFile(L"Native SSAO ", *primeDevice, *secondDevice)));
-    NativeSSAOState.OnEnter = [](FileQueueWriter& logs)
-    {
-        logs.PushMessage(L"FPS;MSPF;MinFPS;MinMSPF;MaxFPS;MaxMSPF");
-    };
+    NativeMBState.OnStatChanged = [this](FileQueueWriter& logs, const TimeStats& ts, float progress)
+        {
+            Benchmark::PrintStatsCSV(ts, logs);
+            MainWindow->SetWindowTitle(L"Native MB Progress " + std::format(L"{:.2f}", progress * 100) + L"% FPS:" + std::to_wstring(ts.fps));
+        };
 
-    NativeSSAOState.OnStatChanged = [this](FileQueueWriter& logs, const TimeStats& ts, float progress)
-    {
-        Benchmark::PrintStatsCSV(ts, logs);
-        MainWindow->SetWindowTitle(L"Native SSAO Progress " + std::format(L"{:.2f}", progress * 100) + L"% FPS:" + std::to_wstring(ts.fps));
-    };
+    NativeMBState.OnExit = [this](FileQueueWriter& logs)
+        {
+            logs.WriteAllLog();
+            Flush();
+        };
 
-    NativeSSAOState.OnExit = [this](FileQueueWriter& logs)
-    {
-        logs.WriteAllLog();
-        Flush();
-    };
+    auto& HybridMBState = benchmark.AddState<WaitState>(TestTime, FileQueueWriter(Benchmark::GetLogFile(L"Hybrid MB ", *primeDevice, *secondDevice)));
+    HybridMBState.OnEnter = [this](FileQueueWriter& logs)
+        {
+            ResetCamera();
+            SwitchDevice();
+            logs.PushMessage(L"FPS;MSPF;MinFPS;MinMSPF;MaxFPS;MaxMSPF");
+        };
+    HybridMBState.OnStatChanged = [this](FileQueueWriter& logs, const TimeStats& ts, float progress)
+        {
+            Benchmark::PrintStatsCSV(ts, logs);
+            MainWindow->SetWindowTitle(L"Hybrid MB Progress " + std::format(L"{:.2f}", progress * 100) + L"% FPS:" + std::to_wstring(ts.fps));
+        };
+    HybridMBState.OnExit = [this](FileQueueWriter& logs)
+        {
+            logs.WriteAllLog();
+            Flush();
+            SwitchDevice();
+            IsStop = true;
+        };
 
-    auto& HybridSSAOState = benchmark.AddState<WaitState>(TestTime, FileQueueWriter(Benchmark::GetLogFile(L"Hybrid SSAO ", *primeDevice, *secondDevice)));
-    HybridSSAOState.OnEnter = [this](FileQueueWriter& logs)
-    {
-        ResetCamera();
-        SwitchDevice();
-        logs.PushMessage(L"FPS;MSPF;MinFPS;MinMSPF;MaxFPS;MaxMSPF");
-    };
-    HybridSSAOState.OnStatChanged = [this](FileQueueWriter& logs, const TimeStats& ts, float progress)
-    {
-        Benchmark::PrintStatsCSV(ts, logs);
-        MainWindow->SetWindowTitle(L"Hybrid SSAO Progress " + std::format(L"{:.2f}", progress * 100) + L"% FPS:" + std::to_wstring(ts.fps));
-    };
-    HybridSSAOState.OnExit = [this](FileQueueWriter& logs)
-    {
-        logs.WriteAllLog();
-        Flush();
-        SwitchDevice();
-    };
-
-
-    auto& NativeHBAOState = benchmark.AddState<WaitState>(TestTime, FileQueueWriter(Benchmark::GetLogFile(L"Native HBAO ", *primeDevice, *secondDevice)));
-    NativeHBAOState.OnEnter = [this](FileQueueWriter& logs)
-    {
-        ResetCamera();
-        logs.PushMessage(L"FPS;MSPF;MinFPS;MinMSPF;MaxFPS;MaxMSPF");
-    };
-    NativeHBAOState.OnStatChanged = [this](FileQueueWriter& logs, const TimeStats& ts, float progress)
-    {
-        Benchmark::PrintStatsCSV(ts, logs);
-        MainWindow->SetWindowTitle(L"Native HBAO Progress " + std::format(L"{:.2f}", progress * 100) + L"% FPS:" + std::to_wstring(ts.fps));
-    };
-    NativeHBAOState.OnExit = [this](FileQueueWriter& logs)
-    {
-        logs.WriteAllLog();
-        Flush();
-    };
-
-    auto& HybridHBAOState = benchmark.AddState<WaitState>(TestTime, FileQueueWriter(Benchmark::GetLogFile(L"Hybrid HBAO ", *primeDevice, *secondDevice)));
-    HybridHBAOState.OnEnter = [this](FileQueueWriter& logs)
-    {
-        ResetCamera();
-        logs.PushMessage(L"FPS;MSPF;MinFPS;MinMSPF;MaxFPS;MaxMSPF");
-        SwitchDevice();
-    };
-    HybridHBAOState.OnStatChanged = [this](FileQueueWriter& logs, const TimeStats& ts, float progress)
-    {
-        Benchmark::PrintStatsCSV(ts, logs);
-        MainWindow->SetWindowTitle(L"Hybrid HBAO Progress " + std::format(L"{:.2f}", progress * 100) + L"% FPS:" + std::to_wstring(ts.fps));
-    };
-    HybridHBAOState.OnExit = [this](FileQueueWriter& logs)
-    {
-        logs.WriteAllLog();
-        SwitchDevice();
-        Flush();
-        IsStop = true;
-    };
-
-
-#if !defined(DEBUG) && !defined(_DEBUG)
+//#if !defined(DEBUG) && !defined(_DEBUG)
     benchmark.Start();
-#endif
+//#endif
     return true;
 }
 
@@ -650,7 +589,7 @@ void HybridMBlurApp::InitFrameResource()
     //debugLogger.PushMessage(std::wstring(L"\nInit FrameResource"));
     //SwitchDevice();
     debugLogger.PushMessage(
-        L"\nInit FrameResource, isUsingSharedSSAO: " + std::to_wstring(IsUsingSharedSSAO)
+        L"\nInit FrameResource, isUsingSharedMB: " + std::to_wstring(IsUsingSharedMB)
     );
 }
 

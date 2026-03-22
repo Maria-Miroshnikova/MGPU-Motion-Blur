@@ -214,8 +214,8 @@ float3 CalcMotionBlur(float2 uv, int2 pixelCoord)
 {
     float eps = 1.0 / 8192.0f;
 
-    float2 vn = neighbourMaxIn.SampleLevel(samLinear, uv, 0);
-    vn = ClampVelocity(vn, MaxVelocity);
+    float2 vn = neighbourMaxIn.SampleLevel(samLinear, uv, 0) * 5;
+    vn = ClampVelocity(vn, 100);//MaxVelocity);
     
     float2 vx = velocityBuffer.SampleLevel(samPoint, uv, 0);
     float3 cx = HdrSource.SampleLevel(samPoint, uv, 0).rgb;
@@ -250,7 +250,7 @@ float3 CalcMotionBlur(float2 uv, int2 pixelCoord)
             continue;
 
         float t = ((float) i + noiseValue) / (float) (STEPS) / 2.0f;
-        t *= 3;
+        t *= 5; //3;
         
         float2 sampleUV = uv + (vn / gTexSizeV) * t;
         sampleUV = clamp(sampleUV, 0.0, 1.0);
@@ -286,4 +286,5 @@ void mbCS(uint3 DTid : SV_DispatchThreadID)
     
     float3 finalColor = CalcMotionBlur(uv, pixelCoord);
     HdrTarget[pixelCoord] = float4(finalColor, 1.0f);
+  //  HdrTarget[pixelCoord] = (velocityBuffer, 0.0f, 1.0f); 
 }
