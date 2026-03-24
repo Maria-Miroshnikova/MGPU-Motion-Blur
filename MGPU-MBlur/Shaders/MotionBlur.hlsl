@@ -274,6 +274,71 @@ float3 CalcMotionBlur(float2 uv, int2 pixelCoord)
     return sum / weight;
 }
 
+// Основной расчёт Motion Blur
+float3 CalcMotionBlurShort(float2 uv, int2 pixelCoord)
+{
+    float eps = 1.0 / 8192.0f;
+
+    float2 vn = neighbourMaxIn.SampleLevel(samLinear, uv, 0) * 5;
+    vn = ClampVelocity(vn, 100); //MaxVelocity);
+    
+    //float2 vx = velocityBuffer.SampleLevel(samPoint, uv, 0);
+    float3 cx = HdrSource.SampleLevel(samPoint, uv, 0).rgb;
+    float zx = LinearizeDepthV(currentDepth.SampleLevel(samPoint, uv, 0).r);
+
+    //return float3(length(vn), 0, 0);
+    //return float3(vn, 1);
+    //return float3(vx, 1);
+    //return cx;
+    //return float3(depth.SampleLevel(samPoint, uv, 0).r, 0, 0);
+    
+    //float threshold = 0.001f; //1 / 4096.0f;
+    float threshold = 1 / 4096.0f;
+    
+    
+    if (length(vn) < threshold)
+        return cx;
+    //return float3(0, 0, 0);
+
+    float noiseValue = 0;
+    
+    float weight = 1.0 / (length(vn) + eps);
+    float3 sum = cx * weight;
+
+    int STEPS = 10;
+    float invSteps = 1.0 / STEPS;
+
+    [loop]
+    for (int i = -STEPS; i <= STEPS; i++)
+    {
+        if (i == 0)
+            continue;
+
+        float t = ((float) i + noiseValue) / (float) (STEPS) / 2.0f;
+        t *= 5; //3;
+        
+        float2 sampleUV = uv + (vn / gTexSizeV) * t;
+        //sampleUV = clamp(sampleUV, 0.0, 1.0); // это временно убираю
+        //sampleUV = ClampUVTile(sampleUV, pixelCoord); // это точно нужно?
+
+        float3 cy = HdrSource.SampleLevel(samPoint, sampleUV, 0).rgb;
+        float zy = LinearizeDepthV(currentDepth.SampleLevel(samPoint, sampleUV, 0).r);
+        //float2 vy = velocityBuffer.SampleLevel(samPoint, sampleUV, 0);
+
+        float f = softDepthCompare(zx, zy);
+        float b = softDepthCompare(zy, zx);
+
+        float ay = f * cone(sampleUV, uv, vn)
+                 + b * cone(uv, sampleUV, vn)
+                 + cylinder(sampleUV, uv, vn) * cylinder(uv, sampleUV, vn) * 2.0;
+
+        weight += ay;
+        sum += cy * ay;
+    }
+
+    return sum / weight;
+}
+
 [numthreads(BlockSizeX, BlockSizeY, 1)]
 void mbCS(uint3 DTid : SV_DispatchThreadID)
 {
@@ -284,7 +349,8 @@ void mbCS(uint3 DTid : SV_DispatchThreadID)
     
     float2 uv = (float2(pixelCoord) + 0.5f) * (1.0f / float2(gTexSizeV));
     
-    float3 finalColor = CalcMotionBlur(uv, pixelCoord);
+    //float3 finalColor = CalcMotionBlur(uv, pixelCoord)
+    float3 finalColor = CalcMotionBlurShort(uv, pixelCoord);
     HdrTarget[pixelCoord] = float4(finalColor, 1.0f);
   //  HdrTarget[pixelCoord] = (velocityBuffer, 0.0f, 1.0f); 
 }

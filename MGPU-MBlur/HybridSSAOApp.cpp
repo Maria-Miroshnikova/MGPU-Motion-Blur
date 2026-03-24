@@ -204,7 +204,7 @@ void HybridMBlurApp::PopulateAmbientMapCommands(const std::shared_ptr<GCommandLi
             const auto& Resources = mbPass->GetPrimeResources();
             const auto& CrossResource = mbPass->GetCrossResources();
             cmdList->CopyResource(CrossResource.GetDepthMap().GetPrimeResource(), Resources.GetDepthMap());
-            cmdList->CopyResource(Resources.GetVelocityMap(), CrossResource.GetVelocityMap().GetPrimeResource());
+            //cmdList->CopyResource(Resources.GetVelocityMap(), CrossResource.GetVelocityMap().GetPrimeResource());
             cmdList->CopyResource(Resources.GetNeighbourmaxMap(), CrossResource.GetNeighbourmaxMap().GetPrimeResource());
         }
         {
@@ -219,7 +219,7 @@ void HybridMBlurApp::PopulateAmbientMapCommands(const std::shared_ptr<GCommandLi
 
                 mbPass->ComputeMbTextures(secondCmdList, currentFrameResource->SecondMbConstantUploadBuffer, Resources);//, ssaoPass);
 
-                secondCmdList->CopyResource(CrossResource.GetVelocityMap().GetSharedResource(), Resources.GetVelocityMap());
+                //secondCmdList->CopyResource(CrossResource.GetVelocityMap().GetSharedResource(), Resources.GetVelocityMap());
                 secondCmdList->CopyResource(CrossResource.GetNeighbourmaxMap().GetSharedResource(), Resources.GetNeighbourmaxMap());
 
                 currentFrameResource->SecondRenderFenceValue = secondQueue->ExecuteCommandList(secondCmdList);
@@ -232,7 +232,7 @@ void HybridMBlurApp::PopulateAmbientMapCommands(const std::shared_ptr<GCommandLi
     }
 }
 
-void HybridMBlurApp::PopulateMbTexturesCommands(const std::shared_ptr<GCommandList>& cmdList) const {
+/*void HybridMBlurApp::PopulateMbTexturesCommands(const std::shared_ptr<GCommandList>& cmdList) const {
     
     cmdList->CopyResource(mbPass->GetPrimeResources().GetDepthMap(), ssaoPass->GetPrimeResources().GetDepthMap());
     // TODO
@@ -267,7 +267,7 @@ void HybridMBlurApp::PopulateMbTexturesCommands(const std::shared_ptr<GCommandLi
         mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetPrimeResources());//, ssaoPass);
         //mbPass->ComputeMbTextures(cmdList, currentFrameResource->PrimeMbConstantUploadBuffer, mbPass->GetSecondResources(), ssaoPass);
     }
-}
+}*/
 
 void HybridMBlurApp::PopulateMbCommands(const std::shared_ptr<GCommandList>& cmdList) const {
     // TODO ?
@@ -806,19 +806,24 @@ void HybridMBlurApp::LoadModels()
     auto queue = primeDevice->GetCommandQueue(GQueueType::Compute);
     auto cmdList = queue->GetCommandList();
 
-    //
-    auto nano = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Nanosuit\\Nanosuit.obj");
-    models[L"nano"] = std::move(nano);
+    if (IsUsingManyModels) {
+        auto nano = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Nanosuit\\Nanosuit.obj");
+        models[L"nano"] = std::move(nano);
+    }
 
     auto atlas = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Atlas\\Atlas.obj");
     models[L"atlas"] = std::move(atlas);
-    auto pbody = assets->CreateModelFromFile(cmdList, "Data\\Objects\\P-Body\\P-Body.obj");
-    models[L"pbody"] = std::move(pbody);
 
-    //
-    auto griffon = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Griffon\\Griffon.FBX");
-    griffon->scaleMatrix = Matrix::CreateScale(0.1);
-    models[L"griffon"] = std::move(griffon);
+    if (IsUsingManyModels) {
+        auto pbody = assets->CreateModelFromFile(cmdList, "Data\\Objects\\P-Body\\P-Body.obj");
+        models[L"pbody"] = std::move(pbody);
+    }
+
+    if (IsUsingManyModels) {
+        auto griffon = assets->CreateModelFromFile(cmdList, "Data\\Objects\\Griffon\\Griffon.FBX");
+        griffon->scaleMatrix = Matrix::CreateScale(0.1);
+        models[L"griffon"] = std::move(griffon);
+    }
 
     /*auto mountDragon = assets->CreateModelFromFile(
         cmdList, "Data\\Objects\\MOUNTAIN_DRAGON\\MOUNTAIN_DRAGON.FBX");
@@ -841,24 +846,25 @@ void HybridMBlurApp::LoadModels()
         cmdList, "Data\\Objects\\Temple\\SM_AsianCastle_A.FBX");
     models[L"stair"] = std::move(stair);
 
-    //
-    auto columns = assets->CreateModelFromFile(
-        cmdList, "Data\\Objects\\Temple\\SM_AsianCastle_E.FBX");
-    models[L"columns"] = std::move(columns);
+    if (IsUsingManyModels) {
+        auto columns = assets->CreateModelFromFile(
+            cmdList, "Data\\Objects\\Temple\\SM_AsianCastle_E.FBX");
+        models[L"columns"] = std::move(columns);
 
-    //
-    auto fountain = assets->
-        CreateModelFromFile(cmdList, "Data\\Objects\\Temple\\SM_Fountain.FBX");
-    models[L"fountain"] = std::move(fountain);
+        auto fountain = assets->
+            CreateModelFromFile(cmdList, "Data\\Objects\\Temple\\SM_Fountain.FBX");
+        models[L"fountain"] = std::move(fountain);
+    }
     
 
     auto platform = assets->CreateModelFromFile(
         cmdList, "Data\\Objects\\Temple\\SM_PlatformSquare.FBX");
     models[L"platform"] = std::move(platform);
 
-    //
-    auto doom = assets->CreateModelFromFile(cmdList, "Data\\Objects\\DoomSlayer\\doommarine.obj");
-    models[L"doom"] = std::move(doom);
+    if (IsUsingManyModels) {
+        auto doom = assets->CreateModelFromFile(cmdList, "Data\\Objects\\DoomSlayer\\doommarine.obj");
+        models[L"doom"] = std::move(doom);
+    }
     
 
     queue->WaitForFenceValue(queue->ExecuteCommandList(cmdList));
@@ -974,59 +980,63 @@ void HybridMBlurApp::CreateGO()
     sun1->AddComponent(light);
     gameObjects.push_back(std::move(sun1));
 
-    //
-    for (int i = 0; i < 11; ++i)
-    {
-        auto nano = std::make_unique<GameObject>();
-        nano->GetTransform()->SetPosition(Vector3::Right * -15 + Vector3::Forward * 12 * i);
-        nano->GetTransform()->SetEulerRotate(Vector3(0, -90, 0));
-        auto renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"nano"]);
-        nano->AddComponent(renderer);
-        typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
-        gameObjects.push_back(std::move(nano));
-
-
-        auto doom = std::make_unique<GameObject>();
-        doom->SetScale(0.08);
-        doom->GetTransform()->SetPosition(Vector3::Right * 15 + Vector3::Forward * 12 * i);
-        doom->GetTransform()->SetEulerRotate(Vector3(0, 90, 0));
-        renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"doom"]);
-        doom->AddComponent(renderer);
-        typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
-        gameObjects.push_back(std::move(doom));
-    }
-
-    for (int i = 0; i < 12; ++i)
-    {
-        for (int j = 0; j < 3; ++j)
+    if (IsUsingManyModels) {
+        for (int i = 0; i < 11; ++i)
         {
-            auto atlas = std::make_unique<GameObject>();
-            atlas->GetTransform()->SetPosition(
-                Vector3::Right * -60 + Vector3::Right * -30 * j + Vector3::Up * 11 + Vector3::Forward * 10 * i);
-            auto renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"atlas"]);
-            atlas->AddComponent(renderer);
+            auto nano = std::make_unique<GameObject>();
+            nano->GetTransform()->SetPosition(Vector3::Right * -15 + Vector3::Forward * 12 * i);
+            nano->GetTransform()->SetEulerRotate(Vector3(0, -90, 0));
+            auto renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"nano"]);
+            nano->AddComponent(renderer);
             typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
-            gameObjects.push_back(std::move(atlas));
+            gameObjects.push_back(std::move(nano));
 
 
-            auto pbody = std::make_unique<GameObject>();
-            pbody->GetTransform()->SetPosition(
-                Vector3::Right * 130 + Vector3::Right * -30 * j + Vector3::Up * 11 + Vector3::Forward * 10 * i);
-            renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"pbody"]);
-            pbody->AddComponent(renderer);
+            auto doom = std::make_unique<GameObject>();
+            doom->SetScale(0.08);
+            doom->GetTransform()->SetPosition(Vector3::Right * 15 + Vector3::Forward * 12 * i);
+            doom->GetTransform()->SetEulerRotate(Vector3(0, 90, 0));
+            renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"doom"]);
+            doom->AddComponent(renderer);
             typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
-            gameObjects.push_back(std::move(pbody));
+            gameObjects.push_back(std::move(doom));
         }
     }
 
-    //
-    auto particle = std::make_unique<GameObject>();
-    particle->GetTransform()->SetPosition(Vector3::Up);
-    const auto emitter = std::make_shared<ParticleEmitter>(primeDevice, 10000);
-    particle->AddComponent(emitter);
-    typedRenderer[static_cast<int>(RenderMode::Particle)].push_back(emitter);
-    emitters.push_back(emitter.get());
-    gameObjects.push_back(std::move(particle));
+    if (IsUsingManyModels) {
+        for (int i = 0; i < 12; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
+                auto atlas = std::make_unique<GameObject>();
+                atlas->GetTransform()->SetPosition(
+                    Vector3::Right * -60 + Vector3::Right * -30 * j + Vector3::Up * 11 + Vector3::Forward * 10 * i);
+                auto renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"atlas"]);
+                atlas->AddComponent(renderer);
+                typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
+                gameObjects.push_back(std::move(atlas));
+
+
+                auto pbody = std::make_unique<GameObject>();
+                pbody->GetTransform()->SetPosition(
+                    Vector3::Right * 130 + Vector3::Right * -30 * j + Vector3::Up * 11 + Vector3::Forward * 10 * i);
+                renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"pbody"]);
+                pbody->AddComponent(renderer);
+                typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
+                gameObjects.push_back(std::move(pbody));
+            }
+        }
+    }
+
+    if (IsUsingManyModels) {
+        auto particle = std::make_unique<GameObject>();
+        particle->GetTransform()->SetPosition(Vector3::Up);
+        const auto emitter = std::make_shared<ParticleEmitter>(primeDevice, 10000);
+        particle->AddComponent(emitter);
+        typedRenderer[static_cast<int>(RenderMode::Particle)].push_back(emitter);
+        emitters.push_back(emitter.get());
+        gameObjects.push_back(std::move(particle));
+    }
 
 
     auto platform = std::make_unique<GameObject>();
@@ -1072,31 +1082,31 @@ void HybridMBlurApp::CreateGO()
     stair->AddComponent(renderer);
     typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
 
-    //
-    auto columns = std::make_unique<GameObject>();
-    columns->GetTransform()->SetParent(stair->GetTransform().get());
-    columns->SetScale(0.8);
-    columns->GetTransform()->SetEulerRotate(Vector3(0, 0, 90));
-    columns->GetTransform()->SetPosition(Vector3::Up * 2000 + Vector3::Forward * 900);
-    renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"columns"]);
-    columns->AddComponent(renderer);
-    typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
+    if (IsUsingManyModels) {
+        auto columns = std::make_unique<GameObject>();
+        columns->GetTransform()->SetParent(stair->GetTransform().get());
+        columns->SetScale(0.8);
+        columns->GetTransform()->SetEulerRotate(Vector3(0, 0, 90));
+        columns->GetTransform()->SetPosition(Vector3::Up * 2000 + Vector3::Forward * 900);
+        renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"columns"]);
+        columns->AddComponent(renderer);
+        typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
 
-    //
-    auto fountain = std::make_unique<GameObject>();
-    fountain->SetScale(0.005);
-    fountain->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
-    fountain->GetTransform()->SetPosition(Vector3::Up * 35 + Vector3::Backward * 77);
-    renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"fountain"]);
-    fountain->AddComponent(renderer);
-    typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
+        auto fountain = std::make_unique<GameObject>();
+        fountain->SetScale(0.005);
+        fountain->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
+        fountain->GetTransform()->SetPosition(Vector3::Up * 35 + Vector3::Backward * 77);
+        renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"fountain"]);
+        fountain->AddComponent(renderer);
+        typedRenderer[static_cast<int>(RenderMode::Opaque)].push_back(renderer);
+
+        gameObjects.push_back(std::move(columns));
+        gameObjects.push_back(std::move(fountain));
+    }
 
     gameObjects.push_back(std::move(platform));
     gameObjects.push_back(std::move(stair));
-    //
-    gameObjects.push_back(std::move(columns));
-    gameObjects.push_back(std::move(fountain));
-
+                                        
 
     /*auto mountDragon = std::make_unique<GameObject>();
     mountDragon->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
@@ -1116,24 +1126,26 @@ void HybridMBlurApp::CreateGO()
     gameObjects.push_back(std::move(desertDragon));
     */
     
-    //
-    auto griffon = std::make_unique<GameObject>();
-    griffon->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
-    griffon->SetScale(0.8);
-    griffon->GetTransform()->SetPosition(Vector3::Right * -355 + Vector3::Up * -7 + Vector3::Backward * 17);
-    renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"griffon"]);
-    griffon->AddComponent(renderer);
-    typedRenderer[static_cast<int>(RenderMode::OpaqueAlphaDrop)].push_back(renderer);
-    gameObjects.push_back(std::move(griffon));
+    if (IsUsingManyModels) {
+        auto griffon = std::make_unique<GameObject>();
+        griffon->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
+        griffon->SetScale(0.8);
+        griffon->GetTransform()->SetPosition(Vector3::Right * -355 + Vector3::Up * -7 + Vector3::Backward * 17);
+        renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"griffon"]);
+        griffon->AddComponent(renderer);
+        typedRenderer[static_cast<int>(RenderMode::OpaqueAlphaDrop)].push_back(renderer);
+        gameObjects.push_back(std::move(griffon));
 
-    griffon = std::make_unique<GameObject>();
-    griffon->SetScale(0.8);
-    griffon->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
-    griffon->GetTransform()->SetPosition(Vector3::Right * 355 + Vector3::Up * -7 + Vector3::Backward * 17);
-    renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"griffon"]);
-    griffon->AddComponent(renderer);
-    typedRenderer[static_cast<int>(RenderMode::OpaqueAlphaDrop)].push_back(renderer);
-    gameObjects.push_back(std::move(griffon));
+
+      /*  griffon = std::make_unique<GameObject>();
+        griffon->SetScale(0.8);
+        griffon->GetTransform()->SetEulerRotate(Vector3(90, 0, 0));
+        griffon->GetTransform()->SetPosition(Vector3::Right * 355 + Vector3::Up * -7 + Vector3::Backward * 17);
+        renderer = std::make_shared<ModelRenderer>(primeDevice, models[L"griffon"]);
+        griffon->AddComponent(renderer);
+        typedRenderer[static_cast<int>(RenderMode::OpaqueAlphaDrop)].push_back(renderer);
+        gameObjects.push_back(std::move(griffon));*/
+    }
 
     debugLogger.PushMessage(std::wstring(L"\nFinish create GO"));
 }

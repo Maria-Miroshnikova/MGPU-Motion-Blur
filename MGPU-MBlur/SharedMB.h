@@ -115,7 +115,7 @@ class MBCrossResources final {
     // фрейм наверное нет т к он скорее в не-параллельном пассе
     
     std::shared_ptr<GCrossAdapterResource> sharedDepthMap;
-    std::shared_ptr<GCrossAdapterResource> sharedVelocityMap;
+    //std::shared_ptr<GCrossAdapterResource> sharedVelocityMap;
     std::shared_ptr<GCrossAdapterResource> sharedNeighbourmaxMap;
 
 public:
@@ -124,7 +124,7 @@ public:
     void OnResize(uint32_t width, uint32_t height) const;
 
     const GCrossAdapterResource& GetDepthMap() const { return *sharedDepthMap; }
-    const GCrossAdapterResource& GetVelocityMap() const { return *sharedVelocityMap; }
+    //const GCrossAdapterResource& GetVelocityMap() const { return *sharedVelocityMap; }
     const GCrossAdapterResource& GetNeighbourmaxMap() const { return *sharedNeighbourmaxMap; }
 };
 

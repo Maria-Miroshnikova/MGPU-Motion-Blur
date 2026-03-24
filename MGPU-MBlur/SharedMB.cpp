@@ -86,8 +86,8 @@ void MBResources::InitializeMbRS()
     CD3DX12_DESCRIPTOR_RANGE texTableDepthSrv;
     texTableDepthSrv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0); // t0
 
-    CD3DX12_DESCRIPTOR_RANGE texTableVelocitySrv;
-    texTableVelocitySrv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0); // t1
+    //CD3DX12_DESCRIPTOR_RANGE texTableVelocitySrv;
+    //texTableVelocitySrv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0); // t1
 
     CD3DX12_DESCRIPTOR_RANGE texTableNeighbourmaxSrv;
     texTableNeighbourmaxSrv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0); // t3
@@ -101,17 +101,28 @@ void MBResources::InitializeMbRS()
     mbRootSignature->AddConstantBufferParameter(0); // b0, буфер с матрицами
 
     mbRootSignature->AddDescriptorParameter(&texTableDepthSrv, 1, D3D12_SHADER_VISIBILITY_ALL); // t0, srv на чтение depth
-    mbRootSignature->AddDescriptorParameter(&texTableVelocitySrv, 1, D3D12_SHADER_VISIBILITY_ALL); // t1, srv на чтение velocity
+    //mbRootSignature->AddDescriptorParameter(&texTableVelocitySrv, 1, D3D12_SHADER_VISIBILITY_ALL); // t1, srv на чтение velocity
     mbRootSignature->AddDescriptorParameter(&texTableNeighbourmaxSrv, 1, D3D12_SHADER_VISIBILITY_ALL); // t3, srv на чтение neighbourmax
     mbRootSignature->AddDescriptorParameter(&texTableFrameSrv, 1, D3D12_SHADER_VISIBILITY_ALL); // t4, srv на чтение frame
     mbRootSignature->AddDescriptorParameter(&texTableMbUav, 1, D3D12_SHADER_VISIBILITY_ALL); // u3, uav на запись в mb map
 
-    const CD3DX12_STATIC_SAMPLER_DESC linearSampler(
+    /*const CD3DX12_STATIC_SAMPLER_DESC linearSampler(
         0, // s0
         D3D12_FILTER_MIN_MAG_MIP_LINEAR,
         D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
         D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
         D3D12_TEXTURE_ADDRESS_MODE_CLAMP
+    );*/
+    const CD3DX12_STATIC_SAMPLER_DESC linearSampler(
+        0,
+        D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        0.0f,
+        16,
+        D3D12_COMPARISON_FUNC_ALWAYS,
+        D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK
     );
     const CD3DX12_STATIC_SAMPLER_DESC pointSampler(
         1, // s1
@@ -415,7 +426,7 @@ void MBResources::BuildPSO(const D3D12_INPUT_LAYOUT_DESC& layout)
 
 void MBCrossResources::Initialize(const MBResources& Resources, const std::shared_ptr<GDevice>& primeDevice, const std::shared_ptr<GDevice>& secondDevice)
 {
-    sharedVelocityMap = std::make_shared<GCrossAdapterResource>(Resources.GetVelocityMap().GetD3D12ResourceDesc(), primeDevice, secondDevice);
+   // sharedVelocityMap = std::make_shared<GCrossAdapterResource>(Resources.GetVelocityMap().GetD3D12ResourceDesc(), primeDevice, secondDevice);
     sharedDepthMap = std::make_shared<GCrossAdapterResource>(Resources.GetDepthMap().GetD3D12ResourceDesc(), primeDevice, secondDevice,
         L"Cross Adapter Depth Map");
     sharedNeighbourmaxMap = std::make_shared<GCrossAdapterResource>(Resources.GetNeighbourmaxMap().GetD3D12ResourceDesc(), primeDevice, secondDevice,
@@ -424,7 +435,7 @@ void MBCrossResources::Initialize(const MBResources& Resources, const std::share
 
 void MBCrossResources::OnResize(uint32_t width, uint32_t height) const
 {
-    sharedVelocityMap->Resize(width, height);
+    //sharedVelocityMap->Resize(width, height);
     sharedDepthMap->Resize(width, height);
 
     UINT tileW = (width + SharedMB::tileSize - 1) / SharedMB::tileSize;
@@ -631,7 +642,7 @@ void SharedMB::ComputeMotionBlur(
     // frame
     cmdList->TransitionBarrier(antiAliasingPrimePath->GetRenderTarget(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-    cmdList->TransitionBarrier(Resources.GetVelocityMap(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    //cmdList->TransitionBarrier(Resources.GetVelocityMap(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     cmdList->TransitionBarrier(Resources.GetNeighbourmaxMap(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     cmdList->TransitionBarrier(Resources.GetMbMap(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     cmdList->FlushResourceBarriers();
@@ -643,11 +654,11 @@ void SharedMB::ComputeMotionBlur(
     cmdList->SetComputeRootConstantBufferView(0, *currFrame.get());
     // depth
     cmdList->SetComputeRootDescriptorTable(1, ssaoPass->GetPrimeResources().GetDepthMapSRV());
-    cmdList->SetComputeRootDescriptorTable(2, Resources.GetVelocityMapSRV());
-    cmdList->SetComputeRootDescriptorTable(3, Resources.GetNeighbourmaxMapSRV());
+    //cmdList->SetComputeRootDescriptorTable(2, Resources.GetVelocityMapSRV()); // !!! сдвигает индексы в следующих ресурсах
+    cmdList->SetComputeRootDescriptorTable(2, Resources.GetNeighbourmaxMapSRV());
     // frame
-    cmdList->SetComputeRootDescriptorTable(4, antiAliasingPrimePath->GetSRV());
-    cmdList->SetComputeRootDescriptorTable(5, Resources.GetMbMapUAV());
+    cmdList->SetComputeRootDescriptorTable(3, antiAliasingPrimePath->GetSRV());
+    cmdList->SetComputeRootDescriptorTable(4, Resources.GetMbMapUAV());
 
     // Dispatch
     auto BlockSizeX = tileSize; // TODO
@@ -661,7 +672,7 @@ void SharedMB::ComputeMotionBlur(
     // frame
     //cmdList->TransitionBarrier(antiAliasingPrimePath->GetRenderTarget(), D3D12_RESOURCE_STATE_COMMON);
 
-    cmdList->TransitionBarrier(Resources.GetVelocityMap(), D3D12_RESOURCE_STATE_COMMON);
+   // cmdList->TransitionBarrier(Resources.GetVelocityMap(), D3D12_RESOURCE_STATE_COMMON);
     cmdList->TransitionBarrier(Resources.GetNeighbourmaxMap(), D3D12_RESOURCE_STATE_COMMON);
     cmdList->TransitionBarrier(Resources.GetMbMap(), D3D12_RESOURCE_STATE_COMMON);
     cmdList->FlushResourceBarriers();

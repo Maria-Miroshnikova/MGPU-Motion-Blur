@@ -110,6 +110,8 @@ protected:
     bool IsUsingSharedSSAO = false;
     bool IsUseHBAO = false;
 
+    bool IsUsingManyModels = true;//false;
+
     UINT pathMapShow = 0;
     //off, shadowMap, ssaoMap
     const UINT maxPathMap = 3;
